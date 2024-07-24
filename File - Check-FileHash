@@ -1,0 +1,56 @@
+
+```powershell
+
+#PowerShell Script for MSI File Analysis
+
+This simple powershell script scans MSI files in a specified directory, retrieves their details and checks them against the VirusTotal API for any maliciious content.
+## Prerequisites
+- PowerShell
+- Internet connection
+- VirusTotal API key
+Function Check-MSIHash {
+        ## Usage
+        #Enter the Path for the MSI Location
+        $ItemPath="C:\Work\Software\*"
+        #Defining the list as Array list, Here I have not user += to add as this is not considered as a simple array and for scaling purpose this helps. A better approach would be to use a collection type that’s       designed to be modified, 
+        $FinalList = New-Object System.Collections.ArrayList
+
+        #API defined here
+        $apikey ="#YOUR_API_KEY"
+        $headers=@{}
+        $headers.Add("accept", "application/json")
+        $headers.Add("x-apikey","$apikey" )
+  
+        #The below variable looks for the files ending in msi. Change the item inside "" to match if you need a     specific file
+        $MsiFiles = Get-ChildItem  -Path $ItemPath -Filter *.msi | Select-Object -Property *
+
+        #getting the Applocker File Information
+        foreach($Item in $MsiFiles){
+                $MsiDetails=Get-AppLockerFileInformation $Item.FullName | Select-Object -ExpandProperty Publisher
+                #Getting the hash Value 
+                $HashValue= Get-FileHash $item.FullName
+                #Hash value is being added to the variable $hash
+                $Hash=$HashValue.Hash
+                #Defining the URL below here to iterate the hash value
+                $url="https://www.virustotal.com/api/v3/files/$hash"
+                $response=Invoke-RestMethod -uri $url -headers $headers -Method GET
+    
+                #Creatning Custom table to display the values
+
+                $FullList = New-Object -TypeName PSObject -Property ([ordered]@{
+                      File_Name   = $MsiDetails.ProductName 
+                      MSI_Code    = $MsiDetails.BinaryName
+                      Version     = $MsiDetails.BinaryVersion
+                      Hash        = $Hash
+                      Malicious   = $response.data.attributes.last_analysis_stats.malicious
+                      Undetected  = $response.data.attributes.last_analysis_stats.suspicious
+
+                })
+
+        #Adding Data to the array, when using the $Null it will supress the output of indexing the array.
+        $Null=$FinalList.Add($FullList)
+
+        }
+        #Displaying the final list 
+        $FinalList
+}
